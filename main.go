@@ -7,12 +7,13 @@ import (
 	"gorm.io/gorm"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 var db *gorm.DB
 
 func initDB() {
-	dsn := "host=localhost user=postgres password=yourpassword dbname=postgres port=5432 sslmode=disable"
+	dsn := "host=localhost user=postgres password=yourpassword dbname=tasks port=5432 sslmode=disable"
 	var err error
 
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -29,6 +30,15 @@ type Task struct {
 	ID     uint   `gorm:"primaryKey" json:"id"`
 	Task   string `json:"task"`
 	IsDone bool   `json:"isDone"`
+}
+
+func ParseID(idParam string) (uint, error) {
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		return 0, err
+	}
+
+	return uint(id), nil
 }
 
 func GetTask(c echo.Context) error {
@@ -57,10 +67,13 @@ func PostTask(c echo.Context) error {
 }
 
 func UpdateTask(c echo.Context) error {
-	id := c.Param("id")
+	id, err := ParseID(c.Param("id"))
+	if err != nil {
+		return err
+	}
 
 	var task Task
-	if err := db.First(&task, "id = ?", id); err != nil {
+	if err := db.First(&task, "id = ?", id).Error; err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Could not find task"})
 	}
 
@@ -87,9 +100,12 @@ func UpdateTask(c echo.Context) error {
 }
 
 func DeleteTask(c echo.Context) error {
-	id := c.Param("id")
+	id, err := ParseID(c.Param("id"))
+	if err != nil {
+		return err
+	}
 
-	result := db.Delete(&Task{}, id)
+	result := db.Delete(&Task{}, "id = ?", id)
 	if result.Error != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not delete task"})
 	}
